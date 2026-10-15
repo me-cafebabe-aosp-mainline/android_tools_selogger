@@ -40,19 +40,6 @@ int64_t MonotonicSeconds() {
     return ts.tv_sec;
 }
 
-Config LoadConfig(const std::string& path) {
-    Config config;
-    std::string text;
-    if (!android::base::ReadFileToString(path, &text)) {
-        LOG(INFO) << "No configuration at " << path << ", using defaults";
-        return config;
-    }
-    std::vector<std::string> errors;
-    ParseConfig(text, &config, &errors);
-    for (const std::string& error : errors) LOG(WARNING) << path << ": " << error;
-    return config;
-}
-
 Daemon::Daemon(Config config, std::string boot_id)
     : config_(config), collector_(std::move(config), std::move(boot_id)) {}
 

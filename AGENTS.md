@@ -49,12 +49,42 @@ deviations listed in "Conventions" below.
   A change that older files cannot be read with needs a new version and a
   reader for the old one, because the file is the user's collected work.
 
+- `selogger dump` is a pipeline: journal -> `RunLabelers` -> `GenerateRules`
+  -> `BuildOutputFiles`. Labelers see only tuples whose target is a generic
+  fallback type and answer with new types, `*_contexts` lines and
+  *retargeted* copies of the denial, so rule generation and macro
+  matching run on the labels that were proposed. They run in order (daemons
+  first, since a daemon found in init's denials is a new domain), and each
+  works on the result of the one before. Everything that asks the device
+  goes through `DeviceInfo`; labelers must not read files themselves, so
+  they stay testable with a fake.
+- Output is split into `vendor/` and `platform/`. A rule or label belongs in
+  `platform/` when vendor sepolicy cannot hold it (private platform domain,
+  path outside the vendor partitions, non-vendor property). Do not drop
+  such output; the maintainer needs to see it.
+- The macro table in `src/analyze/macros.cpp` mirrors
+  `system/sepolicy/public/te_macros`. Only rules whose source is the first
+  argument are matched; the rest are granted as a side effect. When a macro
+  changes upstream, update the table (the permission sets come from
+  `public/global_macros`). The matcher checks type attributes against the
+  device's CIL, and a type nothing is known about has no attributes, so no
+  macro that needs one matches.
+- Unknown input never fails the dump: a missing CIL or contexts file
+  leaves that information out, with a warning.
+- Type names the labelers invent must not clash with the policy or each
+  other (`LabelContext::FreshTypeName`).
+
 ## Reference paths
 
 - logd: `system/logging/logd/` (`LogAudit.cpp` for what lands in the
   events buffer, `LogReader.cpp` for the reader protocol).
 - sepolicy macros: `system/sepolicy/public/te_macros`,
   `public/global_macros` (permission sets).
+- CIL and contexts files on a device: `/system/etc/selinux/plat_*`,
+  `/vendor/etc/selinux/vendor_*` (and `system_ext`, `product`, `odm`);
+  `plat_sepolicy_vers.txt` has the suffix of versioned (public) names.
+- libselinux matching: `external/selinux/libselinux/src/label_backends_android.c`
+  (services exact, properties by prefix).
 - Kernel messages: `/android/common/kernel/mainline/android-mainline`
   (`kernel/audit.c`, `security/selinux/avc.c`).
 - Recent kernels print two spaces after `avc:`; the parser must accept any.

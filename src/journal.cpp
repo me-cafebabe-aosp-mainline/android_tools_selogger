@@ -19,6 +19,8 @@ namespace selogger {
 namespace {
 
 constexpr char kHeader[] = "#selogger-journal 1\n";
+// The state directory is setgid to the group that runs the command line.
+constexpr mode_t kFileMode = 0640;
 
 std::string Escape(std::string_view in) {
     static const char kHex[] = "0123456789ABCDEF";
@@ -181,11 +183,13 @@ bool Journal::Append(const std::vector<Tuple>& tuples, const JournalMeta& meta) 
     data += SerializeMeta(meta);
 
     android::base::unique_fd fd(
-            open(path_.c_str(), O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600));
+            open(path_.c_str(), O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC | O_NOFOLLOW, kFileMode));
     if (fd < 0) {
         PLOG(ERROR) << "Cannot open " << path_;
         return false;
     }
+    // Services run with a umask that would drop the group read bit.
+    fchmod(fd, kFileMode);
     // One write, so concurrent readers see whole lines.
     if (!android::base::WriteFully(fd, data.data(), data.size())) {
         PLOG(ERROR) << "Cannot append to " << path_;
@@ -201,7 +205,9 @@ bool Journal::Rewrite(const TupleTable& table, const JournalMeta& meta) {
     data += SerializeMeta(meta);
 
     std::string tmp = path_ + ".tmp";
-    if (!android::base::WriteStringToFile(data, tmp, 0600, getuid(), getgid())) {
+    // Owner and group stay as the directory gives them.
+    if (!android::base::WriteStringToFile(data, tmp, kFileMode, static_cast<uid_t>(-1),
+                                          static_cast<gid_t>(-1))) {
         PLOG(ERROR) << "Cannot write " << tmp;
         return false;
     }

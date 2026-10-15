@@ -40,4 +40,8 @@ struct Config {
 // and out-of-range values are reported in *errors and otherwise ignored.
 void ParseConfig(std::string_view text, Config* config, std::vector<std::string>* errors);
 
+// Reads the file at path on top of the defaults; a missing file means the
+// defaults, and problems with lines are logged.
+Config LoadConfig(const std::string& path);
+
 }  // namespace selogger

@@ -10,8 +10,8 @@ What it does:
   denial once, with counters, in `/data/vendor/selogger`.
 - It raises the kernel's audit rate limit while you are still finding
   denials, so fewer of them are dropped, and puts it back afterwards.
-- (planned in the next commits) `selogger dump` writes `.te` files that use
-  the `te_macros` macros, and suggests labels for the `*_contexts` files.
+- `selogger dump` turns what was collected into `.te` files that use the
+  `te_macros` macros, and suggests labels for the `*_contexts` files.
 
 It runs in the vendor partition and does not depend on the device.
 
@@ -38,6 +38,7 @@ It runs in the vendor partition and does not depend on the device.
 ## Using it
 
 ```sh
+adb shell selogger dump          # write sepolicy for what was collected
 adb shell selogger status        # what has been collected
 adb shell selogger flush         # write the counters now
 adb shell selogger collect off   # restore the kernel's audit rate limit
@@ -49,6 +50,69 @@ adb shell selogger clear         # forget everything
 dropped because of its rate limit. If it is not zero, exercise the device
 again after raising `collect_audit_rate`, or put the domain you are
 working on in permissive mode while you collect.
+
+## Getting policy out of it
+
+```sh
+adb shell selogger dump          # writes /data/local/tmp/selogger-dump
+adb pull /data/local/tmp/selogger-dump
+```
+
+(`--out-dir DIR` writes elsewhere, `--stdout` prints everything,
+`--raw` prints the collected denials as they are.)
+
+The result:
+
+| File | What to do with it |
+|------|--------------------|
+| `REVIEW.md` | Read first: what needs a decision, and the most frequent denials. |
+| `vendor/<domain>.te` | Copy into the device's sepolicy. |
+| `vendor/file.te`, `property.te`, `service.te` | Declarations of the types the labels below use. |
+| `vendor/file_contexts`, `genfs_contexts`, `property_contexts`, `service_contexts`, `hwservice_contexts`, `vndservice_contexts` | Lines to add to the files of the same name. |
+| `platform/...` | The same for domains and labels that vendor sepolicy cannot hold; they belong to the platform's sepolicy. |
+
+A `<domain>.te` file has these sections:
+
+- **Declarations**: new types and domains, and macros that set up a HAL.
+- **Macros**: `te_macros` macros that stand in for denials, such as
+  `get_prop()`, `set_prop()`, `unix_socket_connect()`, `binder_call()`,
+  `read_logd()`, `add_service()` and `r_dir_file()`. A macro grants a bit
+  more than was denied; that is its purpose.
+- **Rules**: the denials that no macro explains, as `allow` lines.
+- **Extended permissions**: `allowxperm` lines for ioctl commands.
+- **Withheld**: rules that were not written, as comments, because they
+  would not compile or should not be granted: a target that is unlabeled,
+  a private platform type (Treble), ...
+
+The rules are a starting point, not a verdict. Denials are as often a
+sign of a missing label or a bug as of a missing rule, and the review
+file says where it suspects that.
+
+### Labels
+
+Where the target of a denial is a fallback type (`default_prop`,
+`default_android_service`, `vendor_file`, `device`, `sysfs`, `unlabeled`, ...),
+allowing it would grant access to everything with that label. selogger
+proposes a label instead, from what the denial says about the object:
+
+| Object | Proposal |
+|--------|----------|
+| Property (`property=`) | `vendor_<name>_prop`, a `property_contexts` line |
+| Service (`name=`) | `<name>_service`, a `service_contexts` line (`vndservice_contexts` for vndservicemanager); a HAL server in a `hal_foo_server` attribute gets `hal_attribute_service()` |
+| HIDL interface (`interface=`) | `<name>_hwservice`, a `hwservice_contexts` line |
+| File, directory, device node, socket (`path=`) | `<name>_exec`, `_data_file`, `_device`, `_socket` or `_file`, a `file_contexts` line; three or more siblings become one entry for the directory |
+| sysfs, proc, debugfs, tracefs, configfs node | `vendor_<fs>_<name>`, a `genfscon` line for the real path (symbolic links resolved, existing `genfscon` checked) |
+| Daemon that runs in `init`'s domain | a domain, an exec type, `init_daemon_domain()`, and the `file_contexts` line of the binary the process name leads to |
+
+When the log gives an inode but no path, selogger looks for it on the
+file system (with a limit on time and entries). Objects that are
+per-process (`/proc/<pid>`) or per-app are left to the platform.
+
+Some situations only get a note, since the answer is a decision: the
+object is already labeled in `file_contexts` (relabel it, or fix the
+process that creates it), a process creates files in a directory with a
+fallback label (use `file_type_auto_trans()`), a read of a property that
+is one of many with the same fallback label.
 
 ## How it works
 
@@ -116,11 +180,28 @@ Properties: `vendor.selogger.state` is `collecting`, `idle` or `stopped`.
 | `src/tuple.*`, `src/journal.*` | The aggregated denials and their file. |
 | `src/collector.*` | Flush and idle decisions, without clock or threads. |
 | `src/config.*`, `src/events.*` | Configuration file and logd event decoding. |
-| `src/analyze/` | Turning collected denials into policy (see below). |
-| `src/android/` | Parts that need Android: logd socket, audit netlink, control socket, daemon. |
+| `src/analyze/` | The device's policy (`policy_db`), `te_macros` matching (`macros`), rule generation and the output files. |
+| `src/label/` | The labelers and the `*_contexts` parsers. |
+| `src/android/` | Parts that need Android: logd socket, audit netlink, control socket, daemon, and the device-facing side of `dump`. |
 | `selogger.rc`, `config/` | Init service and default configuration. |
 | `sepolicy/vendor/` | Policy of the service itself. |
 | `tests/` | Host tests (`selogger_tests`). |
+
+## Limits
+
+- The kernel drops denials beyond its rate limit and in enforcing mode a
+  process usually stops at the first denial, so one run does not find
+  everything. Collect, apply, rebuild, repeat; `permissive <domain>;` in
+  the policy of the domain you work on shows all of its denials at once.
+- `dontaudit` rules hide denials. Build the policy without them (for
+  example `secilc --disable-dontaudit`) in a collection build if you
+  suspect it.
+- Only the first 16 distinct paths, names and so on of a denial are kept.
+  The labels cover those; run again after applying them.
+- The generated rules do not know the `neverallow` rules of the platform.
+  Build the policy; the build tells.
+- The macro matcher knows 15 macros of `public/te_macros`
+  (`src/analyze/macros.cpp`). Others are written out as plain rules.
 
 ## Development
 

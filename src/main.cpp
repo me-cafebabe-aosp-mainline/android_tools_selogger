@@ -12,6 +12,7 @@
 
 #include "android/control.h"
 #include "android/daemon.h"
+#include "android/dump.h"
 #include "config.h"
 
 namespace {
@@ -22,6 +23,7 @@ constexpr char kUsage[] =
         "Commands:\n"
         "  daemon [--config FILE]  run the collector (started by init)\n"
         "  status                  show what the collector has seen\n"
+        "  dump [--out-dir DIR]    write sepolicy for the collected denials (see dump )\n"
         "  flush                   write pending counters to disk\n"
         "  clear                   forget all collected denials\n"
         "  collect on|off          raise or restore the kernel audit rate limit\n";
@@ -62,6 +64,9 @@ int main(int argc, char** argv) {
     }
 
     android::base::InitLogging(argv, android::base::StderrLogger);
+    if (command == "dump") {
+        return selogger::RunDump(std::vector<std::string>(argv + 2, argv + argc));
+    }
     if (command == "status" || command == "flush" || command == "clear") {
         return RunControlCommand(command);
     }

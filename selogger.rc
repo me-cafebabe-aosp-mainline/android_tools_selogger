@@ -11,4 +11,4 @@ service vendor.selogger /vendor/bin/selogger daemon
 
 # State directory
 on post-fs-data
-    mkdir /data/vendor/selogger 0770 system system
+    mkdir /data/vendor/selogger 2770 system shell

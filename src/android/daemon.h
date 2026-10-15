@@ -53,7 +53,4 @@ class Daemon {
 // Monotonic seconds, not counting suspend: timers do not wake the device.
 int64_t MonotonicSeconds();
 
-// Loads the configuration file; a missing file means defaults.
-Config LoadConfig(const std::string& path);
-
 }  // namespace selogger

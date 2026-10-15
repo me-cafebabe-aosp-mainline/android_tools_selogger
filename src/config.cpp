@@ -5,6 +5,8 @@
 
 #include "config.h"
 
+#include <android-base/file.h>
+#include <android-base/logging.h>
 #include <android-base/parseint.h>
 #include <android-base/strings.h>
 
@@ -84,6 +86,19 @@ void ParseConfig(std::string_view text, Config* config, std::vector<std::string>
         }
         if (!ok) errors->push_back("bad value for " + key + ": " + value);
     }
+}
+
+Config LoadConfig(const std::string& path) {
+    Config config;
+    std::string text;
+    if (!android::base::ReadFileToString(path, &text)) {
+        LOG(INFO) << "No configuration at " << path << ", using defaults";
+        return config;
+    }
+    std::vector<std::string> errors;
+    ParseConfig(text, &config, &errors);
+    for (const std::string& error : errors) LOG(WARNING) << path << ": " << error;
+    return config;
 }
 
 }  // namespace selogger

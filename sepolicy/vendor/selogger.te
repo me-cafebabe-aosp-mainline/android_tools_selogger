@@ -42,4 +42,8 @@ userdebug_or_eng(`
   allow shell selogger_exec:file rx_file_perms;
   unix_socket_connect(shell, selogger, selogger)
   r_dir_file(shell, selogger_data_file)
+
+  # The dump reads the policy and contexts files of the device
+  allow shell { sepolicy_file file_contexts_file property_contexts_file service_contexts_file }:file r_file_perms;
+  allow shell { vendor_service_contexts_file hwservice_contexts_file vndservice_contexts_file }:file r_file_perms;
 ')
