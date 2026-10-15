@@ -3,7 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <android-base/file.h>
 #include <gtest/gtest.h>
+#include <stdlib.h>
+
+#include <filesystem>
 
 #include "analyze/policy_db.h"
 #include "analyze/report.h"
@@ -76,6 +80,16 @@ TEST(PipelineTest, AuditLinesToPolicyFiles) {
     RuleSet rules = GenerateRules(labels.tuples, types, &policy);
     auto files = BuildOutputFiles({collected, labels.plan, rules, 3});
 
+    // For looking at the output, or checking it with the device tree's style
+    // checker: SELOGGER_TEST_OUT=/some/dir selogger_tests
+    if (const char* dir = getenv("SELOGGER_TEST_OUT")) {
+        for (const auto& [name, content] : files) {
+            std::filesystem::path path = std::filesystem::path(dir) / name;
+            std::filesystem::create_directories(path.parent_path());
+            android::base::WriteStringToFile(content, path.string());
+        }
+    }
+
     // hal_foo: a property, a file, a service and the service manager.
     const std::string& foo = files.at("vendor/hal_foo.te");
     EXPECT_NE(foo.find("set_prop(hal_foo, vendor_foo_mode_prop)"), std::string::npos) << foo;
@@ -90,13 +104,13 @@ TEST(PipelineTest, AuditLinesToPolicyFiles) {
     EXPECT_EQ(foo.find("allow hal_foo vendor_file"), std::string::npos) << foo;
 
     EXPECT_NE(files.at("vendor/property_contexts")
-                      .find("vendor.foo.mode u:object_r:vendor_foo_mode_prop:s0 exact"),
+                      .find("vendor.foo.mode\tu:object_r:vendor_foo_mode_prop:s0 exact"),
               std::string::npos);
     EXPECT_NE(files.at("vendor/file_contexts")
-                      .find("/vendor/etc/foo\\.cfg u:object_r:foo_cfg_vendor_file:s0"),
+                      .find("/vendor/etc/foo\\.cfg\tu:object_r:foo_cfg_vendor_file:s0"),
               std::string::npos);
     EXPECT_NE(files.at("vendor/service_contexts")
-                      .find("vendor.x.IFoo/default u:object_r:hal_vendor_x_ifoo_service:s0"),
+                      .find("vendor.x.IFoo/default\tu:object_r:hal_vendor_x_ifoo_service:s0"),
               std::string::npos);
 
     // hal_bar: the unlabeled target is withheld, not allowed.

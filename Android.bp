@@ -55,6 +55,7 @@ cc_library_static {
         "src/analyze/policy_db.cpp",
         "src/analyze/report.cpp",
         "src/analyze/rulegen.cpp",
+        "src/analyze/style.cpp",
         "src/avc.cpp",
         "src/collector.cpp",
         "src/config.cpp",

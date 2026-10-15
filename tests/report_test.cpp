@@ -47,8 +47,13 @@ TEST(ReportTest, WritesOneFilePerDomainWithSections) {
     EXPECT_NE(te.find("# Rules\nallow hal_foo vendor_file:file read;"), std::string::npos);
     EXPECT_NE(te.find("# Extended permissions\nallowxperm"), std::string::npos);
     EXPECT_NE(te.find("# Withheld\n# allow hal_foo unlabeled"), std::string::npos);
+    // Sections are in alphabetical order, as the style check wants.
+    EXPECT_LT(te.find("# Declarations"), te.find("# Extended permissions"));
+    EXPECT_LT(te.find("# Extended permissions"), te.find("# Macros"));
+    EXPECT_LT(te.find("# Macros"), te.find("# Rules"));
+    EXPECT_LT(te.find("# Rules"), te.find("# Withheld"));
     EXPECT_EQ(files.at("vendor/file_contexts"),
-              "# Added by selogger\n/vendor/etc/a u:object_r:a_file:s0\n");
+              "# Collected denials\n/vendor/etc/a\tu:object_r:a_file:s0\n");
 }
 
 TEST(ReportTest, PlatformDomainsAndDeclarationOnlyDomains) {
@@ -98,6 +103,39 @@ TEST(ReportTest, FormatTuplesIsSortedAndShowsHints) {
     t.hints[kHintPath] = {"/p"};
     std::string out = FormatTuples({t, T("a", "x", "file", {"write"})});
     EXPECT_EQ(out, "1x a -> x:file { write }\n2x b -> x:file { read } path=/p\n");
+}
+
+TEST(ReportTest, ContextsFilesFollowTheDeviceTreeStyle) {
+    LabelPlan labels;
+    labels.AddLine("vendor/file_contexts", "/dev/zeta u:object_r:z_device:s0");
+    labels.AddLine("vendor/file_contexts", "/dev/video/b u:object_r:b_device:s0");
+    labels.AddLine("vendor/file_contexts", "/dev/Alpha u:object_r:a_device:s0");
+    labels.AddLine("vendor/genfs_contexts", "genfscon sysfs /devices/b u:object_r:b_sysfs:s0");
+    labels.AddLine("vendor/genfs_contexts", "genfscon proc /sys/x u:object_r:x_proc:s0");
+    labels.AddLine("vendor/genfs_contexts", "genfscon sysfs /devices/a u:object_r:a_sysfs:s0");
+    labels.AddLine("vendor/property_contexts", "vendor.b u:object_r:b_prop:s0 exact");
+    labels.AddLine("vendor/property_contexts", "vendor.a u:object_r:a_prop:s0 exact");
+    labels.AddLine("vendor/file.te", "type b_file, file_type;");
+    labels.AddLine("vendor/file.te", "vendor_internal_prop(c_prop)");
+    labels.AddLine("vendor/file.te", "type A_file, file_type;");
+    RuleSet rules;
+    auto files = BuildOutputFiles({{}, labels, rules, 0});
+
+    // Directories come before the files next to them; tabs separate fields.
+    EXPECT_EQ(files.at("vendor/file_contexts"),
+              "# Collected denials\n/dev/video/b\tu:object_r:b_device:s0\n"
+              "/dev/Alpha\tu:object_r:a_device:s0\n/dev/zeta\tu:object_r:z_device:s0\n");
+    EXPECT_EQ(files.at("vendor/genfs_contexts"),
+              "# Collected denials\ngenfscon proc /sys/x\tu:object_r:x_proc:s0\n"
+              "genfscon sysfs /devices/a\tu:object_r:a_sysfs:s0\n"
+              "genfscon sysfs /devices/b\tu:object_r:b_sysfs:s0\n");
+    EXPECT_EQ(files.at("vendor/property_contexts"),
+              "# Collected denials\nvendor.a\tu:object_r:a_prop:s0 exact\n"
+              "vendor.b\tu:object_r:b_prop:s0 exact\n");
+    // Rules before macro calls, case-insensitively.
+    EXPECT_EQ(files.at("vendor/file.te"),
+              "# Collected denials\ntype A_file, file_type;\ntype b_file, file_type;\n"
+              "vendor_internal_prop(c_prop)\n");
 }
 
 TEST(ContextsTest, ServiceLookupIsExact) {
