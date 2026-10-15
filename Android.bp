@@ -48,7 +48,9 @@ cc_library_static {
     vendor: true,
     host_supported: true,
     srcs: [
+        "src/analyze/macros.cpp",
         "src/analyze/policy_db.cpp",
+        "src/analyze/rulegen.cpp",
         "src/avc.cpp",
         "src/collector.cpp",
         "src/config.cpp",
