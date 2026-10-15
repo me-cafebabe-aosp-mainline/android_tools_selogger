@@ -14,7 +14,6 @@ cc_defaults {
         "-Werror",
         "-Wextra",
     ],
-    cpp_std: "experimental",
 }
 
 cc_binary {
@@ -22,5 +21,25 @@ cc_binary {
     defaults: ["selogger_defaults"],
     vendor: true,
     srcs: ["src/main.cpp"],
+    static_libs: ["libselogger_core"],
     shared_libs: ["libbase"],
+}
+
+cc_library_static {
+    name: "libselogger_core",
+    defaults: ["selogger_defaults"],
+    vendor: true,
+    host_supported: true,
+    srcs: ["src/avc.cpp"],
+    export_include_dirs: ["src"],
+    shared_libs: ["libbase"],
+}
+
+cc_test_host {
+    name: "selogger_tests",
+    defaults: ["selogger_defaults"],
+    srcs: ["tests/*_test.cpp"],
+    static_libs: ["libselogger_core"],
+    shared_libs: ["libbase"],
+    test_suites: ["general-tests"],
 }
