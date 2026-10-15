@@ -116,6 +116,7 @@ Properties: `vendor.selogger.state` is `collecting`, `idle` or `stopped`.
 | `src/tuple.*`, `src/journal.*` | The aggregated denials and their file. |
 | `src/collector.*` | Flush and idle decisions, without clock or threads. |
 | `src/config.*`, `src/events.*` | Configuration file and logd event decoding. |
+| `src/analyze/` | Turning collected denials into policy (see below). |
 | `src/android/` | Parts that need Android: logd socket, audit netlink, control socket, daemon. |
 | `selogger.rc`, `config/` | Init service and default configuration. |
 | `sepolicy/vendor/` | Policy of the service itself. |
