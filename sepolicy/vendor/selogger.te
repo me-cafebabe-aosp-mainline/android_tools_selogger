@@ -1,0 +1,45 @@
+# Types
+type selogger, domain;
+type selogger_exec, exec_type, vendor_file_type, file_type;
+type selogger_data_file, file_type, data_file_type;
+type selogger_socket, file_type;
+vendor_internal_prop(vendor_selogger_prop)
+
+userdebug_or_eng(`
+  # Service
+  init_daemon_domain(selogger)
+
+  # Denials come from logd's reader socket.
+  read_logd(selogger)
+
+  # Configuration and boot id
+  r_dir_file(selogger, vendor_configs_file)
+  allow selogger proc_random:file r_file_perms;
+
+  # State
+  allow selogger system_data_root_file:dir search;
+  allow selogger vendor_data_file:dir search;
+  allow selogger selogger_data_file:dir create_dir_perms;
+  allow selogger selogger_data_file:file create_file_perms;
+
+  # Control socket, created by init
+  allow selogger selogger_socket:sock_file create_file_perms;
+  allow selogger self:unix_stream_socket { accept listen };
+
+  # Audit rate limit, as logd's auditctl sets it
+  allow selogger self:global_capability_class_set audit_control;
+  allow selogger self:netlink_audit_socket create_socket_perms_no_ioctl;
+  # For kernel < 6.13
+  allow selogger self:netlink_audit_socket nlmsg_write;
+  # For kernel >= 6.13
+  allow selogger self:netlink_audit_socket nlmsg;
+  allowxperm selogger self:netlink_audit_socket nlmsg AUDIT_SET;
+
+  # Properties
+  set_prop(selogger, vendor_selogger_prop)
+
+  # Command line, run from an adb shell
+  allow shell selogger_exec:file rx_file_perms;
+  unix_socket_connect(shell, selogger, selogger)
+  r_dir_file(shell, selogger_data_file)
+')

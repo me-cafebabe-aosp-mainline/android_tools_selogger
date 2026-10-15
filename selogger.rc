@@ -1,0 +1,14 @@
+# Service
+service vendor.selogger /vendor/bin/selogger daemon
+    class late_start
+    user system
+    group system log
+    capabilities AUDIT_CONTROL
+    socket selogger stream 0660 system shell
+    priority 19
+    ioprio idle 0
+    task_profiles ServiceCapacityLow
+
+# State directory
+on post-fs-data
+    mkdir /data/vendor/selogger 0770 system system

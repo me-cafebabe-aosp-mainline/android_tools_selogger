@@ -20,9 +20,26 @@ cc_binary {
     name: "selogger",
     defaults: ["selogger_defaults"],
     vendor: true,
-    srcs: ["src/main.cpp"],
+    srcs: [
+        "src/android/audit_rate.cpp",
+        "src/android/control.cpp",
+        "src/android/daemon.cpp",
+        "src/android/logd_reader.cpp",
+        "src/main.cpp",
+    ],
     static_libs: ["libselogger_core"],
-    shared_libs: ["libbase"],
+    shared_libs: [
+        "libbase",
+        "libcutils",
+    ],
+    init_rc: ["selogger.rc"],
+    required: ["selogger.conf"],
+}
+
+prebuilt_etc {
+    name: "selogger.conf",
+    src: "config/selogger.conf",
+    vendor: true,
 }
 
 cc_library_static {
@@ -32,6 +49,9 @@ cc_library_static {
     host_supported: true,
     srcs: [
         "src/avc.cpp",
+        "src/collector.cpp",
+        "src/config.cpp",
+        "src/events.cpp",
         "src/journal.cpp",
         "src/tuple.cpp",
     ],
