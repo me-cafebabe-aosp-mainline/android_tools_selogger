@@ -143,4 +143,21 @@ TEST(RuleGenTest, MacrosReplaceTheRulesTheyCover) {
     EXPECT_EQ(rules.allows, (std::vector<std::string>{"allow a_dom vendor_foo_prop:file write;"}));
 }
 
+TEST(RuleGenTest, VendorDomainsDoNotGetReadLogd) {
+    class Logd : public TypeInfo {
+      public:
+        bool HasAttribute(const std::string& t, const std::string& a) const override {
+            return t == "logd" && a == "domain";
+        }
+    } types;
+    PolicyDb db("202604");
+    db.AddCil("(type logd)", PolicyOrigin::kPlatform);
+    db.AddCil("(type hal_foo)", PolicyOrigin::kVendor);
+    std::vector<Tuple> tuples = {T("hal_foo", "logd", "unix_stream_socket", {"connectto"}),
+                                 T("hal_foo", "logdr_socket", "sock_file", {"write"})};
+    auto set = GenerateRules(tuples, types, &db);
+    EXPECT_EQ(Find(set, "hal_foo").macros,
+              (std::vector<std::string>{"unix_socket_connect(hal_foo, logdr, logd)"}));
+}
+
 }  // namespace selogger

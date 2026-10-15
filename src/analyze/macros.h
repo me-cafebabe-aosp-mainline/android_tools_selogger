@@ -52,6 +52,9 @@ struct MacroDef {
     // How many of the rules have to be seen, and which one has to be.
     int min_seen = 1;
     int anchor = -1;
+    // The macro grants something vendor domains are neverallowed (read_logd()
+    // lets the domain run logcat), so it is only used for platform domains.
+    bool platform_only = false;
 };
 
 const std::vector<MacroDef>& MacroTable();
@@ -68,6 +71,7 @@ struct MacroUse {
 // Finds the macros that stand in for denials of one source domain. The uses
 // are disjoint: every denied (tuple, permission) is covered by at most one.
 std::vector<MacroUse> MatchMacros(const std::string& domain,
-                                  const std::vector<const Tuple*>& tuples, const TypeInfo& types);
+                                  const std::vector<const Tuple*>& tuples, const TypeInfo& types,
+                                  bool vendor_domain = true);
 
 }  // namespace selogger

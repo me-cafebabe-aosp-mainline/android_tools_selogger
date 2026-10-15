@@ -1,4 +1,3 @@
 # selogger
 /vendor/bin/selogger          u:object_r:selogger_exec:s0
 /data/vendor/selogger(/.*)?   u:object_r:selogger_data_file:s0
-/dev/socket/selogger          u:object_r:selogger_socket:s0

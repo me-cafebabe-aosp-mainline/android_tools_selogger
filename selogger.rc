@@ -4,7 +4,6 @@ service vendor.selogger /vendor/bin/selogger daemon
     user system
     group system log
     capabilities AUDIT_CONTROL
-    socket selogger stream 0660 system shell
     priority 19
     ioprio idle 0
     task_profiles ServiceCapacityLow

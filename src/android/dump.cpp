@@ -94,8 +94,8 @@ PolicyDb LoadPolicy() {
     return db;
 }
 
-uint64_t KernelLost() {
-    auto status = SendControlCommand("status");
+uint64_t KernelLost(const std::string& state_dir) {
+    auto status = SendControlCommand(state_dir, "status");
     if (!status) return 0;
     for (const std::string& line : android::base::Split(*status, "\n")) {
         uint64_t lost;
@@ -136,7 +136,7 @@ int RunDump(const std::vector<std::string>& args) {
     Config config = LoadConfig(kDefaultConfigPath);
     // Counters of known denials are written rarely; ask the daemon for what
     // it holds. Without a daemon the journal is all there is.
-    SendControlCommand("flush");
+    SendControlCommand(config.state_dir, "flush");
 
     TupleTable table(1000000, 256);
     JournalMeta meta;
@@ -163,7 +163,7 @@ int RunDump(const std::vector<std::string>& args) {
     LabelResult labels = RunLabelers(collected, device, &policy);
     PolicyTypes types(&policy, labels.plan.new_types);
     RuleSet rules = GenerateRules(labels.tuples, types, &policy);
-    auto files = BuildOutputFiles({collected, labels.plan, rules, KernelLost()});
+    auto files = BuildOutputFiles({collected, labels.plan, rules, KernelLost(config.state_dir)});
 
     if (options.to_stdout) {
         for (const auto& [name, content] : files)

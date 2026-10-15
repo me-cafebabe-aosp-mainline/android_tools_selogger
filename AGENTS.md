@@ -39,6 +39,14 @@ deviations listed in "Conventions" below.
   (tag 1003, `auditd`) is used rather than main: it holds the raw audit
   string and is not subject to chatty deduplication. logd strips `pid=`
   from those strings and appends `bug=`/`app=`.
+- Treble limits what the command line (the adb shell, a core domain) may
+  do to the vendor daemon: no `connectto` on its socket and no setting of
+  vendor properties (both are neverallows). It also may not use the
+  `read_logd()` macro in a vendor domain, since that adds `logcat_exec`.
+  So the command line and the daemon talk through `command`/`reply` files
+  in the state directory (setgid to the shell group), and the daemon
+  waits on inotify. Do not go back to a socket or property without
+  checking the neverallows (`m selinux_policy` with this sepolicy included).
 - The audit rate limit is set through the kernel's audit netlink socket,
   as `system/logging/logd/auditctl.cpp` does. `persist.logd.audit.rate`
   is a `system_internal_prop`: vendor code (including vendor init rc
@@ -69,6 +77,8 @@ deviations listed in "Conventions" below.
   `public/global_macros`). The matcher checks type attributes against the
   device's CIL, and a type nothing is known about has no attributes, so no
   macro that needs one matches.
+- The `.te` file is processed by m4: no apostrophes in comments inside
+  `userdebug_or_eng(...)` (they end the quote), and backquotes only as quotes.
 - Unknown input never fails the dump: a missing CIL or contexts file
   leaves that information out, with a warning.
 - Type names the labelers invent must not clash with the policy or each
@@ -95,5 +105,12 @@ deviations listed in "Conventions" below.
 - Compile test of the service: `cd /android/LineageOS/24 && source
   build/envsetup.sh && breakfast mi8953_a && m selogger` (given by the
   maintainer; use bash, it fails when sourced from zsh in a subshell).
-- Not yet run on a device or VM: the sepolicy in `sepolicy/vendor/` has not
-  been compiled or exercised. Expect to iterate on it.
+- Policy check: include `tools/selogger/sepolicy/vendor` in a device's
+  `BOARD_VENDOR_SEPOLICY_DIRS` temporarily and run `m selinux_policy`
+  (also given by the maintainer). It compiles the policy and runs the
+  neverallow checks. Revert the device change afterwards.
+- `mmm tools/selogger` builds everything in the repository, host tests
+  included; run `out/host/linux-x86/testcases/selogger_tests/x86_64/selogger_tests`.
+- Not yet run on a device or VM: the policy compiles and passes the
+  neverallow checks, but runtime denials for the daemon (and the dump) are
+  still to be found. `selogger` collecting its own denials is a good test.

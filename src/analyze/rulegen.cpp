@@ -72,8 +72,9 @@ class Generator {
             usable.push_back(tuple);
         }
 
+        bool vendor_domain = !(policy_ && policy_->OriginOf(domain) == PolicyOrigin::kPlatform);
         CoveredPerms covered;
-        for (MacroUse& use : MatchMacros(domain, usable, types_)) {
+        for (MacroUse& use : MatchMacros(domain, usable, types_, vendor_domain)) {
             for (const auto& [key, perms] : use.covered)
                 covered[key].insert(perms.begin(), perms.end());
             rules.macros.push_back(std::move(use.text));

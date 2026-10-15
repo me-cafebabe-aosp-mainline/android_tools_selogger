@@ -33,7 +33,8 @@ It runs in the vendor partition and does not depend on the device.
    The rules are wrapped in `userdebug_or_eng()`; only the type
    declarations are present in user builds.
 
-3. Build, flash, and use the device. The service starts by itself.
+3. Build, flash, and use the device. The service starts by itself. The
+   command line works from a normal (unrooted) adb shell.
 
 ## Using it
 
@@ -119,7 +120,7 @@ is one of many with the same fallback label.
 ```
 kernel audit --> logd --events buffer--> selogger --> /data/vendor/selogger/
                                            ^   |            denials.journal
-                              audit rate --+   +-- control socket (CLI)
+                              audit rate --+   +-- command/reply files (CLI)
 ```
 
 - Denials are read from logd's reader socket (the `events` buffer, tag
@@ -134,8 +135,13 @@ kernel audit --> logd --events buffer--> selogger --> /data/vendor/selogger/
   older one. A new kind of denial is written after `flush_delay_s`;
   counter-only changes only every `count_flush_interval_s`. When the file
   passes `journal_max_bytes` it is rewritten.
-- The daemon has no timers while nothing happens: it blocks on logd, and
-  on a condition variable until work is due.
+- The daemon has no timers while nothing happens: it blocks on logd, on a
+  condition variable until work is due, and on an inotify watch for
+  commands.
+- The command line cannot use a socket or a property to reach the daemon:
+  Treble forbids a core domain such as the adb shell from connecting to
+  a vendor socket or setting a vendor property. It drops a `command` file
+  into the state directory and waits for the daemon's `reply` file.
 
 ### The audit rate limit
 
@@ -182,7 +188,7 @@ Properties: `vendor.selogger.state` is `collecting`, `idle` or `stopped`.
 | `src/config.*`, `src/events.*` | Configuration file and logd event decoding. |
 | `src/analyze/` | The device's policy (`policy_db`), `te_macros` matching (`macros`), rule generation and the output files. |
 | `src/label/` | The labelers and the `*_contexts` parsers. |
-| `src/android/` | Parts that need Android: logd socket, audit netlink, control socket, daemon, and the device-facing side of `dump`. |
+| `src/android/` | Parts that need Android: logd socket, audit netlink, command files, daemon, and the device-facing side of `dump`. |
 | `selogger.rc`, `config/` | Init service and default configuration. |
 | `sepolicy/vendor/` | Policy of the service itself. |
 | `tests/` | Host tests (`selogger_tests`). |
@@ -205,10 +211,15 @@ Properties: `vendor.selogger.state` is `collecting`, `idle` or `stopped`.
 
 ## Development
 
+`mmm tools/selogger` builds the service, the host library and the tests.
+The sepolicy can be checked by including it in a device temporarily and
+building `m selinux_policy`, which also runs the neverallow checks.
+
 The code that does not touch Android (everything outside `src/android/`)
 is built for the host as `libselogger_core`, and `selogger_tests` runs its
 tests:
 
 ```sh
-m selogger_tests && out/host/linux-x86/nativetest64/selogger_tests/selogger_tests
+mmm tools/selogger
+out/host/linux-x86/testcases/selogger_tests/x86_64/selogger_tests
 ```

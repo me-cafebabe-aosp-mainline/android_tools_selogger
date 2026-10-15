@@ -7,66 +7,94 @@
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
-#include <android-base/strings.h>
 #include <android-base/unique_fd.h>
-#include <cutils/sockets.h>
-#include <errno.h>
-#include <sys/socket.h>
+#include <sys/inotify.h>
+#include <unistd.h>
+
+#include <chrono>
+#include <thread>
 
 namespace selogger {
 
 namespace {
 
-void SetTimeout(int fd) {
-    timeval timeout = {.tv_sec = 5, .tv_usec = 0};
-    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+constexpr std::chrono::seconds kReplyTimeout(5);
+constexpr std::chrono::milliseconds kReplyPoll(50);
+// The command is readable by the daemon, which is not in the shell's group.
+constexpr mode_t kCommandMode = 0664;
+// The state directory is setgid, so the group is the shell's.
+constexpr mode_t kReplyMode = 0640;
+
+bool WriteAtomically(const std::string& path, const std::string& content, mode_t mode) {
+    std::string tmp = path + ".tmp";
+    if (!android::base::WriteStringToFile(content, tmp, mode, static_cast<uid_t>(-1),
+                                          static_cast<gid_t>(-1))) {
+        return false;
+    }
+    if (rename(tmp.c_str(), path.c_str()) != 0) {
+        unlink(tmp.c_str());
+        return false;
+    }
+    return true;
 }
 
 }  // namespace
 
-bool ControlServer::Run() {
-    int listen_fd = android_get_control_socket(kControlSocketName);
-    if (listen_fd < 0) {
-        LOG(ERROR) << "No control socket \"" << kControlSocketName << "\" from init";
-        return false;
-    }
-    if (listen(listen_fd, 4) < 0) {
-        PLOG(ERROR) << "Cannot listen on the control socket";
-        return false;
-    }
+void ControlServer::ServeCommand() {
+    std::string command_path = state_dir_ + "/" + kCommandFile;
+    std::string request;
+    if (!android::base::ReadFileToString(command_path, &request)) return;
+    unlink(command_path.c_str());
 
-    for (;;) {
-        android::base::unique_fd client(
-                TEMP_FAILURE_RETRY(accept4(listen_fd, nullptr, nullptr, SOCK_CLOEXEC)));
-        if (client < 0) {
-            PLOG(ERROR) << "accept failed";
-            return false;
-        }
-        SetTimeout(client);
-
-        char buffer[256];
-        ssize_t n = TEMP_FAILURE_RETRY(recv(client, buffer, sizeof(buffer) - 1, 0));
-        if (n <= 0) continue;
-        std::string command = android::base::Trim(std::string(buffer, n));
-
-        std::string reply = handler_(command);
-        android::base::WriteFully(client, reply.data(), reply.size());
+    size_t space = request.find(' ');
+    if (space == std::string::npos) return;
+    std::string reply = handler_(request.substr(space + 1));
+    if (!WriteAtomically(state_dir_ + "/" + kReplyFile, request.substr(0, space) + "\n" + reply,
+                         kReplyMode)) {
+        PLOG(ERROR) << "Cannot write the reply";
     }
 }
 
-std::optional<std::string> SendControlCommand(const std::string& command) {
-    android::base::unique_fd fd(socket_local_client(
-            kControlSocketName, ANDROID_SOCKET_NAMESPACE_RESERVED, SOCK_STREAM));
-    if (fd < 0) return std::nullopt;
-    SetTimeout(fd);
+void ControlServer::Run() {
+    android::base::unique_fd fd(inotify_init1(IN_CLOEXEC));
+    if (fd < 0 || inotify_add_watch(fd, state_dir_.c_str(), IN_MOVED_TO | IN_CLOSE_WRITE) < 0) {
+        PLOG(ERROR) << "Cannot watch " << state_dir_ << "; the command line will not work";
+        return;
+    }
 
-    std::string line = command + "\n";
-    if (!android::base::WriteFully(fd, line.data(), line.size())) return std::nullopt;
+    for (;;) {
+        // A command may have arrived before the watch, or together with
+        // another event, so look before every sleep.
+        ServeCommand();
+        char events[4096];
+        if (TEMP_FAILURE_RETRY(read(fd, events, sizeof(events))) < 0) {
+            PLOG(ERROR) << "Cannot read the inotify events";
+            return;
+        }
+    }
+}
 
-    std::string reply;
-    if (!android::base::ReadFdToString(fd, &reply)) return std::nullopt;
-    return reply;
+std::optional<std::string> SendControlCommand(const std::string& state_dir,
+                                              const std::string& command) {
+    // Unique enough: only one command line runs at a time.
+    std::string token = std::to_string(getpid()) + "-" + std::to_string(time(nullptr));
+    std::string reply_path = state_dir + "/" + kReplyFile;
+    unlink(reply_path.c_str());
+    if (!WriteAtomically(state_dir + "/" + kCommandFile, token + " " + command, kCommandMode)) {
+        PLOG(ERROR) << "Cannot write the command to " << state_dir;
+        return std::nullopt;
+    }
+
+    auto deadline = std::chrono::steady_clock::now() + kReplyTimeout;
+    while (std::chrono::steady_clock::now() < deadline) {
+        std::string reply;
+        if (android::base::ReadFileToString(reply_path, &reply) &&
+            reply.starts_with(token + "\n")) {
+            return reply.substr(token.size() + 1);
+        }
+        std::this_thread::sleep_for(kReplyPoll);
+    }
+    return std::nullopt;
 }
 
 }  // namespace selogger

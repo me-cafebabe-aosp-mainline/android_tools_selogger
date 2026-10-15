@@ -140,8 +140,10 @@ std::string Daemon::HandleCommand(const std::string& command) {
 }
 
 void Daemon::ControlLoop() {
-    ControlServer server([this](const std::string& command) { return HandleCommand(command); });
-    if (!server.Run()) LOG(ERROR) << "Control socket stopped; the daemon keeps collecting";
+    ControlServer server(config_.state_dir,
+                         [this](const std::string& command) { return HandleCommand(command); });
+    server.Run();
+    LOG(ERROR) << "Control stopped; the daemon keeps collecting";
 }
 
 int Daemon::Run() {

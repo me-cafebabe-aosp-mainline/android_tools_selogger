@@ -36,9 +36,10 @@ std::string ReadBootId() {
 }
 
 int RunControlCommand(const std::string& command) {
-    auto reply = selogger::SendControlCommand(command);
+    selogger::Config config = selogger::LoadConfig(selogger::kDefaultConfigPath);
+    auto reply = selogger::SendControlCommand(config.state_dir, command);
     if (!reply) {
-        fprintf(stderr, "selogger: the daemon is not running (or this user may not talk to it)\n");
+        fprintf(stderr, "selogger: the daemon did not answer (is it running?)\n");
         return 1;
     }
     fputs(reply->c_str(), stdout);

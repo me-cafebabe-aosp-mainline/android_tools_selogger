@@ -206,7 +206,8 @@ const std::vector<MacroDef>& MacroTable() {
               {"$1", "logd", {"unix_stream_socket"}, {"connectto"}, {}}},
              {},
              1,
-             2},
+             2,
+             true},
             {"write_logd",
              1,
              {{"$1", "logdw_socket", {"sock_file"}, {"write"}, {}},
@@ -252,9 +253,11 @@ const std::vector<MacroDef>& MacroTable() {
 }
 
 std::vector<MacroUse> MatchMacros(const std::string& domain,
-                                  const std::vector<const Tuple*>& tuples, const TypeInfo& types) {
+                                  const std::vector<const Tuple*>& tuples, const TypeInfo& types,
+                                  bool vendor_domain) {
     std::vector<Candidate> candidates;
     for (const MacroDef& macro : MacroTable()) {
+        if (vendor_domain && macro.platform_only) continue;
         for (const Binding& binding : FindBindings(macro, domain, tuples, types)) {
             if (auto candidate = Evaluate(macro, domain, binding, tuples)) {
                 candidates.push_back(std::move(*candidate));

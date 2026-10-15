@@ -82,12 +82,16 @@ TEST(MacrosTest, UnixSocketConnectNeedsBothHalves) {
               (std::vector<std::string>{"unix_socket_connect(hal_foo, foo, foo_server)"}));
 }
 
-TEST(MacrosTest, ReadLogdBeatsTheGenericSocketMacro) {
+TEST(MacrosTest, ReadLogdIsOnlyForPlatformDomains) {
     FakeTypes types;
     types.attrs["logd"] = {"domain"};
     std::vector<Tuple> tuples = {T("logd", "unix_stream_socket", {"connectto"}),
                                  T("logdr_socket", "sock_file", {"write"})};
-    EXPECT_EQ(Texts(MatchMacros("hal_foo", Ptrs(tuples), types)),
+    // read_logd() also grants logcat_exec, which vendor domains may not have.
+    EXPECT_EQ(Texts(MatchMacros("hal_foo", Ptrs(tuples), types, true)),
+              (std::vector<std::string>{"unix_socket_connect(hal_foo, logdr, logd)"}));
+    // For the platform it is the idiom, and beats the generic macro.
+    EXPECT_EQ(Texts(MatchMacros("hal_foo", Ptrs(tuples), types, false)),
               (std::vector<std::string>{"read_logd(hal_foo)"}));
 }
 
