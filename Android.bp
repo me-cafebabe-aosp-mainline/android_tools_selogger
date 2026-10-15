@@ -1,0 +1,26 @@
+//
+// SPDX-FileCopyrightText: The LineageOS Project
+// SPDX-License-Identifier: Apache-2.0
+//
+
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+cc_defaults {
+    name: "selogger_defaults",
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wextra",
+    ],
+    cpp_std: "experimental",
+}
+
+cc_binary {
+    name: "selogger",
+    defaults: ["selogger_defaults"],
+    vendor: true,
+    srcs: ["src/main.cpp"],
+    shared_libs: ["libbase"],
+}
