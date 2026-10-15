@@ -48,6 +48,9 @@ class PolicyDb {
     void AddCil(std::string_view text, PolicyOrigin origin);
 
     bool HasType(const std::string& type) const { return type_origin_.contains(type); }
+    bool HasAttributeDefined(const std::string& attribute) const {
+        return attributes_.contains(attribute) || definitions_.contains(attribute);
+    }
     bool HasAttribute(const std::string& type, const std::string& attribute) const;
     std::optional<PolicyOrigin> OriginOf(const std::string& type) const;
     // A platform type that vendor policy can refer to. False for vendor types
