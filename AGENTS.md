@@ -109,16 +109,13 @@ deviations listed in "Conventions" below.
   `plat_sepolicy_vers.txt` has the suffix of versioned (public) names.
 - libselinux matching: `external/selinux/libselinux/src/label_backends_android.c`
   (services exact, properties by prefix).
-- Kernel messages: `/android/common/kernel/mainline/android-mainline`
+- Kernel messages: `kernel/mainline/android-mainline`
   (`kernel/audit.c`, `security/selinux/avc.c`).
 - Recent kernels print two spaces after `avc:`; the parser must accept any.
 
 ## Testing
 
 - Host tests: `selogger_tests` (see README). They need no device.
-- Compile test of the service: `cd /android/LineageOS/24 && source
-  build/envsetup.sh && breakfast mi8953_a && m selogger` (given by the
-  maintainer; use bash, it fails when sourced from zsh in a subshell).
 - Host tool tests: `python3 -m unittest discover -s tools/selogger/tests`;
   they run the style checker over merged results when the tree has it.
 - Policy check: include `tools/selogger/sepolicy/vendor` in a device's
