@@ -30,7 +30,11 @@ cc_library_static {
     defaults: ["selogger_defaults"],
     vendor: true,
     host_supported: true,
-    srcs: ["src/avc.cpp"],
+    srcs: [
+        "src/avc.cpp",
+        "src/journal.cpp",
+        "src/tuple.cpp",
+    ],
     export_include_dirs: ["src"],
     shared_libs: ["libbase"],
 }
