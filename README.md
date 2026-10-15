@@ -89,6 +89,40 @@ The rules are a starting point, not a verdict. Denials are as often a
 sign of a missing label or a bug as of a missing rule, and the review
 file says where it suspects that.
 
+### Putting the result into the device tree
+
+`scripts/selogger_expand.py` does that on the host. It takes the dump (or
+pulls it over adb) and merges it into the sepolicy directory of the
+device:
+
+```sh
+tools/selogger/scripts/selogger_expand.py --pull \
+    --sepolicy-dir device/foo/bar/sepolicy/vendor
+```
+
+- New domains and contexts files are created; in files that exist, the
+  new rules and entries go into the section they belong to, or a new
+  section at the place where its title sorts, in the order
+  `device/mainline/common/build/tools/check_sepolicy.py` expects.
+  Nothing already there is removed or changed; only the permissions of an
+  `allow` rule that is there are extended.
+- Entries that are already present are left alone, so the tool can run
+  again after the next round of collecting. A different label for a name
+  that has one is reported as a conflict and not changed. A type that is
+  declared in another file of the directory is not declared again.
+- `--dry-run` shows the changes as a diff and writes nothing. `--dump DIR`
+  uses a dump you pulled yourself, and `--serial` selects the device.
+- `platform/` files of the dump are written to `--platform-dir` if you
+  give one, and listed otherwise.
+- The style check runs on the files that were written; `--no-check` skips
+  it. It finds the checker in the tree, or use `--checker`.
+
+Read `REVIEW.md` before building: the tool puts the rules in, it does not
+decide whether they are right.
+
+The files of a dump already follow the style of that checker, so a
+device tree that does not use it still gets tidy files.
+
 ### Labels
 
 Where the target of a denial is a fallback type (`default_prop`,
@@ -189,9 +223,10 @@ Properties: `vendor.selogger.state` is `collecting`, `idle` or `stopped`.
 | `src/analyze/` | The device's policy (`policy_db`), `te_macros` matching (`macros`), rule generation and the output files. |
 | `src/label/` | The labelers and the `*_contexts` parsers. |
 | `src/android/` | Parts that need Android: logd socket, audit netlink, command files, daemon, and the device-facing side of `dump`. |
+| `scripts/selogger_expand.py` | Host tool: merges a dump into a device tree. |
 | `selogger.rc`, `config/` | Init service and default configuration. |
 | `sepolicy/vendor/` | Policy of the service itself. |
-| `tests/` | Host tests (`selogger_tests`). |
+| `tests/` | Host tests: `selogger_tests` (C++), `test_selogger_expand.py`. |
 
 ## Limits
 
@@ -222,4 +257,5 @@ tests:
 ```sh
 mmm tools/selogger
 out/host/linux-x86/testcases/selogger_tests/x86_64/selogger_tests
+python3 -m unittest discover -s tools/selogger/tests    # the host tool
 ```
