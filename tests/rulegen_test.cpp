@@ -58,6 +58,16 @@ TEST(RuleGenTest, GroupsBySourceDomainAndSorts) {
               (std::vector<std::string>{"allow a_dom x:dir search;", "allow a_dom y:file read;"}));
 }
 
+TEST(RuleGenTest, RootShellIsLeftOut) {
+    NoTypes types;
+    auto set = GenerateRules({T("su", "x", "file", {"read"}), T("a_dom", "x", "file", {"read"})},
+                             types, nullptr);
+    ASSERT_EQ(set.domains.size(), 1u);
+    EXPECT_EQ(set.domains[0].domain, "a_dom");
+    ASSERT_EQ(set.notes.size(), 1u);
+    EXPECT_EQ(set.notes[0].domain, "su");
+}
+
 TEST(RuleGenTest, SelfTarget) {
     NoTypes types;
     auto set = GenerateRules({T("a_dom", "a_dom", "process", {"setsched"})}, types, nullptr);

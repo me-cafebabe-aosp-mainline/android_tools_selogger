@@ -62,6 +62,12 @@ class Generator {
 
     void AddDomain(const std::string& domain, const std::vector<const Tuple*>& tuples,
                    RuleSet* out) {
+        if (domain == "su") {
+            out->notes.push_back({domain,
+                                  "is the root shell of userdebug builds, not part of the "
+                                  "product; its denials are left out"});
+            return;
+        }
         DomainRules rules;
         rules.domain = domain;
         rules.home = HomeOf(domain, out);
