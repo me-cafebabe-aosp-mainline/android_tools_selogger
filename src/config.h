@@ -44,4 +44,7 @@ void ParseConfig(std::string_view text, Config* config, std::vector<std::string>
 // defaults, and problems with lines are logged.
 Config LoadConfig(const std::string& path);
 
+// The first 8 characters of the kernel's boot id, as the journal stores them.
+std::string ReadBootId();
+
 }  // namespace selogger

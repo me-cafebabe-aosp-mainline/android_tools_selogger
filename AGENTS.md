@@ -56,6 +56,9 @@ deviations listed in "Conventions" below.
 - The journal format is versioned by its first line (`#selogger-journal 1`).
   A change that older files cannot be read with needs a new version and a
   reader for the old one, because the file is the user's collected work.
+  The `M` line holds what is not a tuple (the resume time, the kernel's
+  drop count with its boot). Readers skip fields they do not know, so
+  adding one does not need a new version.
 
 - `selogger dump` is a pipeline: journal -> `RunLabelers` -> `GenerateRules`
   -> `BuildOutputFiles`. Labelers see only tuples whose target is a generic

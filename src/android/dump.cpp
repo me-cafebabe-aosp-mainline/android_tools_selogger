@@ -94,17 +94,6 @@ PolicyDb LoadPolicy() {
     return db;
 }
 
-uint64_t KernelLost(const std::string& state_dir) {
-    auto status = SendControlCommand(state_dir, "status");
-    if (!status) return 0;
-    for (const std::string& line : android::base::Split(*status, "\n")) {
-        uint64_t lost;
-        if (line.starts_with("kernel_lost: ") && android::base::ParseUint(line.substr(13), &lost))
-            return lost;
-    }
-    return 0;
-}
-
 bool WriteFiles(const std::string& out_dir, const std::map<std::string, std::string>& files) {
     std::error_code error;
     // Start from nothing, so files of an earlier dump do not stay behind.
@@ -163,7 +152,8 @@ int RunDump(const std::vector<std::string>& args) {
     LabelResult labels = RunLabelers(collected, device, &policy);
     PolicyTypes types(&policy, labels.plan.new_types);
     RuleSet rules = GenerateRules(labels.tuples, types, &policy);
-    auto files = BuildOutputFiles({collected, labels.plan, rules, KernelLost(config.state_dir)});
+    auto files = BuildOutputFiles(
+            {collected, labels.plan, rules, meta.lost_boot == ReadBootId() ? meta.kernel_lost : 0});
 
     if (options.to_stdout) {
         for (const auto& [name, content] : files)

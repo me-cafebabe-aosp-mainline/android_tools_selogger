@@ -101,4 +101,11 @@ Config LoadConfig(const std::string& path) {
     return config;
 }
 
+std::string ReadBootId() {
+    std::string id;
+    android::base::ReadFileToString("/proc/sys/kernel/random/boot_id", &id);
+    id = android::base::StringReplace(android::base::Trim(id), "-", "", true);
+    return id.substr(0, 8);
+}
+
 }  // namespace selogger

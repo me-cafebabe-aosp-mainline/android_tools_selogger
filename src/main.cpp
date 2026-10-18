@@ -28,13 +28,6 @@ constexpr char kUsage[] =
         "  clear                   forget all collected denials\n"
         "  collect on|off          raise or restore the kernel audit rate limit\n";
 
-std::string ReadBootId() {
-    std::string id;
-    android::base::ReadFileToString("/proc/sys/kernel/random/boot_id", &id);
-    id = android::base::StringReplace(android::base::Trim(id), "-", "", true);
-    return id.substr(0, 8);
-}
-
 int RunControlCommand(const std::string& command) {
     selogger::Config config = selogger::LoadConfig(selogger::kDefaultConfigPath);
     auto reply = selogger::SendControlCommand(config.state_dir, command);
@@ -60,7 +53,7 @@ int main(int argc, char** argv) {
         android::base::SetDefaultTag("selogger");
         std::string config_path = selogger::kDefaultConfigPath;
         if (argc == 4 && std::string(argv[2]) == "--config") config_path = argv[3];
-        selogger::Daemon daemon(selogger::LoadConfig(config_path), ReadBootId());
+        selogger::Daemon daemon(selogger::LoadConfig(config_path), selogger::ReadBootId());
         return daemon.Run();
     }
 

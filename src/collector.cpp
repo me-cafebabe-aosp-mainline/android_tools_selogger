@@ -43,6 +43,13 @@ bool Collector::Init(int64_t now) {
     mkdir(config_.state_dir.c_str(), 0770);
     if (!journal_.Load(&table_, &meta_)) return false;
     last_new_tuple_ = now;
+    // The count is per boot.
+    if (meta_.lost_boot == boot_id_) {
+        kernel_lost_ = meta_.kernel_lost;
+    } else {
+        meta_.kernel_lost = 0;
+        meta_.lost_boot.clear();
+    }
     LOG(INFO) << "Loaded " << table_.size() << " tuples from " << journal_.path();
     return true;
 }
@@ -69,9 +76,16 @@ bool Collector::OnDenial(const AvcDenial& denial, uint64_t entry_ns, int64_t ent
     return wake;
 }
 
-void Collector::OnKernelLost(uint64_t lost) {
+bool Collector::OnKernelLost(uint64_t lost, int64_t now) {
     std::lock_guard lock(mutex_);
-    kernel_lost_ = std::max(kernel_lost_, lost);
+    if (lost <= kernel_lost_) return false;
+    kernel_lost_ = lost;
+    meta_.kernel_lost = lost;
+    meta_.lost_boot = boot_id_;
+    meta_dirty_ = true;
+    if (structure_pending_since_ != 0) return false;
+    structure_pending_since_ = now;
+    return true;
 }
 
 void Collector::OnParseFailure() {
@@ -120,7 +134,8 @@ bool Collector::FlushLocked(bool include_counts) {
     std::vector<Tuple> dirty = table_.TakeDirty(include_counts);
     structure_pending_since_ = 0;
     if (include_counts) counts_pending_since_ = 0;
-    if (dirty.empty()) return true;
+    if (dirty.empty() && !meta_dirty_) return true;
+    meta_dirty_ = false;
 
     bool ok = journal_.Append(dirty, meta_);
     if (ok && journal_.size_bytes() > config_.journal_max_bytes) {

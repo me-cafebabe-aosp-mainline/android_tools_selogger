@@ -76,7 +76,9 @@ void Daemon::HandleRateChange(uint32_t rate) {
 
 void Daemon::HandleEntry(const LogEntry& entry) {
     if (entry.log_id == kLogIdKernel) {
-        if (auto lost = ParseAuditLost(entry.payload)) collector_.OnKernelLost(*lost);
+        if (auto lost = ParseAuditLost(entry.payload)) {
+            if (collector_.OnKernelLost(*lost, MonotonicSeconds())) Kick();
+        }
         return;
     }
 

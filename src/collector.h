@@ -46,7 +46,8 @@ class Collector {
     // Returns true if the caller should wake the thread that runs Tick(),
     // because this denial created work that was not scheduled yet.
     bool OnDenial(const AvcDenial& denial, uint64_t entry_ns, int64_t entry_time_s, int64_t now);
-    void OnKernelLost(uint64_t lost);
+    // Returns whether the caller should wake the main loop.
+    bool OnKernelLost(uint64_t lost, int64_t now);
     void OnParseFailure();
 
     struct TickResult {
@@ -83,6 +84,7 @@ class Collector {
     int64_t last_new_tuple_ = 0;
     // Monotonic time work became pending; 0 if there is none.
     int64_t structure_pending_since_ = 0;
+    bool meta_dirty_ = false;
     int64_t counts_pending_since_ = 0;
     uint64_t denials_seen_ = 0;
     uint64_t parse_failures_ = 0;

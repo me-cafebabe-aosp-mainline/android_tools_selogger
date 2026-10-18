@@ -140,7 +140,11 @@ std::optional<Tuple> ParseTuple(std::string_view line) {
 }
 
 std::string SerializeMeta(const JournalMeta& meta) {
-    return "M\tlast_ns=" + std::to_string(meta.last_entry_ns) + "\n";
+    std::string line = "M\tlast_ns=" + std::to_string(meta.last_entry_ns);
+    if (meta.kernel_lost > 0 && !meta.lost_boot.empty()) {
+        line += "\tlost=" + std::to_string(meta.kernel_lost) + "\tlost_boot=" + meta.lost_boot;
+    }
+    return line + "\n";
 }
 
 bool Journal::Load(TupleTable* table, JournalMeta* meta) {
@@ -162,6 +166,10 @@ bool Journal::Load(TupleTable* table, JournalMeta* meta) {
             for (const std::string& field : android::base::Split(line, "\t")) {
                 if (field.starts_with("last_ns=")) {
                     android::base::ParseUint(field.substr(8), &meta->last_entry_ns);
+                } else if (field.starts_with("lost=")) {
+                    android::base::ParseUint(field.substr(5), &meta->kernel_lost);
+                } else if (field.starts_with("lost_boot=")) {
+                    meta->lost_boot = field.substr(10);
                 }
             }
         } else if (auto tuple = ParseTuple(line)) {

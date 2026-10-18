@@ -155,13 +155,30 @@ TEST_F(CollectorTest, ClearForgetsEverything) {
 TEST_F(CollectorTest, StatusCountsLostAndParseFailures) {
     Collector c(config_, "boot");
     ASSERT_TRUE(c.Init(1));
-    c.OnKernelLost(5);
-    c.OnKernelLost(3);  // the counter only grows
+    EXPECT_TRUE(c.OnKernelLost(5, 1));
+    EXPECT_FALSE(c.OnKernelLost(3, 1));  // the counter only grows
     c.OnParseFailure();
     auto s = c.Status(1);
     EXPECT_EQ(s.kernel_lost, 5u);
     EXPECT_EQ(s.parse_failures, 1u);
     EXPECT_NE(FormatStatus(s).find("kernel_lost: 5"), std::string::npos);
+}
+
+TEST_F(CollectorTest, LostCountSurvivesARestartOfTheDaemonButNotOfTheBoot) {
+    {
+        Collector c(config_, "boot1");
+        ASSERT_TRUE(c.Init(1));
+        EXPECT_TRUE(c.OnKernelLost(7, 2));
+        c.Tick(2 + config_.flush_delay_s);
+        EXPECT_FALSE(c.OnKernelLost(7, 40));
+    }
+    Collector same_boot(config_, "boot1");
+    ASSERT_TRUE(same_boot.Init(1));
+    EXPECT_EQ(same_boot.Status(1).kernel_lost, 7u);
+
+    Collector next_boot(config_, "boot2");
+    ASSERT_TRUE(next_boot.Init(1));
+    EXPECT_EQ(next_boot.Status(1).kernel_lost, 0u);
 }
 
 }  // namespace selogger

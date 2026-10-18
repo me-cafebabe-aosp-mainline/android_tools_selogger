@@ -20,6 +20,9 @@ struct JournalMeta {
     // Time of the newest log entry processed, to resume reading after a
     // restart.
     uint64_t last_entry_ns = 0;
+    // The kernel's count of dropped audit messages, and the boot it is from.
+    uint64_t kernel_lost = 0;
+    std::string lost_boot;
 };
 
 // One line of the journal.
