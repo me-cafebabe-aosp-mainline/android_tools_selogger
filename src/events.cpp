@@ -14,7 +14,8 @@ namespace selogger {
 
 namespace {
 
-constexpr uint8_t kEventTypeString = 3;
+// EVENT_TYPE_STRING in log/log_event_list.h.
+constexpr uint8_t kEventTypeString = 2;
 constexpr size_t kEventHeaderSize = 4 + 1 + 4;
 
 uint32_t ReadLe32(const char* p) {

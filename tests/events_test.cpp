@@ -26,13 +26,19 @@ std::string Event(uint32_t tag, uint8_t type, const std::string& text,
 }  // namespace
 
 TEST(EventsTest, DecodesAuditString) {
-    EXPECT_EQ(DecodeAuditEvent(Event(1003, 3, "type=1400 avc")), "type=1400 avc");
+    EXPECT_EQ(DecodeAuditEvent(Event(1003, 2, "type=1400 avc")), "type=1400 avc");
+}
+
+TEST(EventsTest, DecodesWhatLogdSends) {
+    // The start of an event as seen on a device: tag 1003, string, length 3.
+    const std::string wire("\xeb\x03\x00\x00\x02\x03\x00\x00\x00""abc", 12);
+    EXPECT_EQ(DecodeAuditEvent(wire), "abc");
 }
 
 TEST(EventsTest, RejectsOtherTagsTypesAndTruncation) {
-    EXPECT_FALSE(DecodeAuditEvent(Event(42, 3, "x")).has_value());
+    EXPECT_FALSE(DecodeAuditEvent(Event(42, 2, "x")).has_value());
     EXPECT_FALSE(DecodeAuditEvent(Event(1003, 0, "x")).has_value());
-    EXPECT_FALSE(DecodeAuditEvent(Event(1003, 3, "short", 100)).has_value());
+    EXPECT_FALSE(DecodeAuditEvent(Event(1003, 2, "short", 100)).has_value());
     EXPECT_FALSE(DecodeAuditEvent("").has_value());
     EXPECT_FALSE(DecodeAuditEvent("12345678").has_value());
 }
