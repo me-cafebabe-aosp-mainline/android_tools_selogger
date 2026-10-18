@@ -136,7 +136,7 @@ proposes a label instead, from what the denial says about the object:
 | Service (`name=`) | `<name>_service`, a `service_contexts` line (`vndservice_contexts` for vndservicemanager); a HAL server in a `hal_foo_server` attribute gets `hal_attribute_service()` |
 | HIDL interface (`interface=`) | `<name>_hwservice`, a `hwservice_contexts` line |
 | File, directory, device node, socket (`path=`) | `<name>_exec`, `_data_file`, `_device`, `_socket` or `_file`, a `file_contexts` line; three or more siblings become one entry for the directory |
-| sysfs, proc, debugfs, tracefs, configfs node | `vendor_<fs>_<name>`, a `genfscon` line for the real path (symbolic links resolved, existing `genfscon` checked) |
+| sysfs, proc, debugfs, tracefs, configfs node | `vendor_<fs>_<name>` (`<fs>_<name>` in `platform/` for a private platform domain), a `genfscon` line for the real path (symbolic links resolved, existing `genfscon` checked, numbered instances such as `wakeup14` labeled at their directory) |
 | Daemon that runs in `init`'s domain | a domain, an exec type, `init_daemon_domain()`, and the `file_contexts` line of the binary the process name leads to |
 
 When the log gives an inode but no path, selogger looks for it on the

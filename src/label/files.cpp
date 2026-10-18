@@ -89,6 +89,38 @@ const PseudoFs* PseudoFsOf(const std::string& path, const std::set<std::string>&
     return nullptr;
 }
 
+// Directories whose entries are numbered in the order the devices appear,
+// so "wakeup14" may be "wakeup9" on the next boot. genfscon matches a
+// prefix, so the label goes to the directory above.
+bool IsNumberedInstance(const std::string& component) {
+    static const char* const kNumbered[] = {"wakeup",       "hwmon",         "event", "input",
+                                            "iio:device",   "i2c-",          "mtd",   "gpiochip",
+                                            "thermal_zone", "cooling_device"};
+    for (const char* prefix : kNumbered) {
+        std::string p = prefix;
+        if (component.size() > p.size() && component.starts_with(p) &&
+            std::all_of(component.begin() + p.size(), component.end(), ::isdigit)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Cuts the path before its first numbered instance; returns whether it did.
+bool StripNumberedInstance(std::string* path) {
+    size_t start = 1;
+    while (start < path->size()) {
+        size_t end = path->find('/', start);
+        if (end == std::string::npos) end = path->size();
+        if (IsNumberedInstance(path->substr(start, end - start))) {
+            path->resize(start - 1);
+            return true;
+        }
+        start = end + 1;
+    }
+    return false;
+}
+
 std::vector<std::string> Objects(const Tuple& tuple, const LabelContext& ctx) {
     std::set<std::string> paths;
     if (auto it = tuple.hints.find(kHintPath); it != tuple.hints.end()) {
@@ -200,6 +232,10 @@ bool LabelPseudoFsPath(const Tuple& tuple, const std::string& path, const Pseudo
     std::string rel = real.starts_with(mount + "/") ? real.substr(mount.size()) : real;
 
     const std::string& domain = tuple.key.stype;
+    if (StripNumberedInstance(&rel)) {
+        ctx.Note(domain, path + " is numbered in the order devices appear; the label is for " +
+                                 rel + " and everything below it");
+    }
     if (ctx.policy) {
         if (auto existing = ctx.policy->LookupGenfs(fs.fs, rel);
             existing && !IsGenericFileType(existing->type)) {
@@ -212,8 +248,12 @@ bool LabelPseudoFsPath(const Tuple& tuple, const std::string& path, const Pseudo
 
     auto known = type_of_entry->find(rel);
     if (known == type_of_entry->end()) {
-        std::string type = ctx.FreshTypeName("vendor_" + std::string(fs.fs) + "_" +
-                                             SanitizeName(Basename(rel)));
+        // A private platform domain cannot name a vendor type, so what it
+        // needs is labeled in the platform's sepolicy.
+        bool platform = ctx.IsPlatformDomain(domain);
+        std::string home = platform ? "platform" : "vendor";
+        std::string type = ctx.FreshTypeName((platform ? "" : "vendor_") + std::string(fs.fs) +
+                                             "_" + SanitizeName(Basename(rel)));
         std::set<std::string> attrs = {"fs_type"};
         std::string declaration = "type " + type + ", fs_type";
         if (!ctx.policy || ctx.policy->HasAttributeDefined(fs.attribute)) {
@@ -221,9 +261,9 @@ bool LabelPseudoFsPath(const Tuple& tuple, const std::string& path, const Pseudo
             attrs.insert(fs.attribute);
         }
         ctx.plan->new_types[type] = attrs;
-        ctx.plan->AddLine("vendor/file.te", declaration + ";");
-        ctx.plan->AddLine("vendor/genfs_contexts", "genfscon " + std::string(fs.fs) + " " + rel +
-                                                           " u:object_r:" + type + ":s0");
+        ctx.plan->AddLine(home + "/file.te", declaration + ";");
+        ctx.plan->AddLine(home + "/genfs_contexts", "genfscon " + std::string(fs.fs) + " " + rel +
+                                                            " u:object_r:" + type + ":s0");
         known = type_of_entry->emplace(rel, type).first;
     }
     ctx.plan->synthesized.push_back(Retarget(tuple, known->second));
@@ -314,6 +354,15 @@ void LabelFiles(const std::vector<Tuple>& tuples, const LabelContext& ctx) {
             ctx.plan->AddLine(home + "/file.te", choice.declaration);
             ctx.plan->AddLine(home + "/file_contexts",
                               FileContextsLine(entry, is_dir, choice.type));
+            if (home == "vendor" && ctx.IsPlatformDomain(domain)) {
+                // The label is still needed, but the platform's rule cannot name it.
+                ctx.Note(domain,
+                         "is a private platform domain, which cannot refer to the vendor "
+                         "type " +
+                                 choice.type + "; give " + entry +
+                                 " a type the platform knows, or an attribute");
+                continue;
+            }
             ctx.plan->synthesized.push_back(Retarget(tuple, choice.type));
             handled++;
         }

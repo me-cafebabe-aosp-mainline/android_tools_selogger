@@ -307,6 +307,34 @@ TEST(LabelFilesTest, SysfsNodesGetGenfscon) {
     EXPECT_EQ(result.tuples[0].key.ttype, "vendor_sysfs_mode");
 }
 
+TEST(LabelFilesTest, NumberedInstancesAreLabeledAtTheirDirectory) {
+    FakeDevice device;
+    std::vector<Tuple> tuples = {
+            T("hal_foo", "sysfs", "file", {"read"},
+              {{kHintPath, {"/sys/devices/pci0000:00/wakeup/wakeup14/name"}}})};
+    LabelResult result = RunLabelers(tuples, device, nullptr);
+    EXPECT_TRUE(Has(result.plan, "vendor/genfs_contexts",
+                    "genfscon sysfs /devices/pci0000:00/wakeup u:object_r:vendor_sysfs_wakeup:s0"));
+    EXPECT_TRUE(NoteMentions(result.plan, "numbered in the order devices appear"));
+}
+
+TEST(LabelFilesTest, PlatformDomainsGetPlatformLabels) {
+    PolicyDb db("202604");
+    db.AddCil(
+            "(type sysfs) (typeattribute sysfs_type) (typeattribute fs_type) (type system_suspend)",
+            PolicyOrigin::kPlatform);
+    db.AddCil("(typeattribute foo_202604)", PolicyOrigin::kVendor);
+    FakeDevice device;
+    std::vector<Tuple> tuples = {T("system_suspend", "sysfs", "file", {"read"},
+                                   {{kHintPath, {"/sys/devices/platform/foo/mode"}}})};
+    LabelResult result = RunLabelers(tuples, device, &db);
+    EXPECT_TRUE(Has(result.plan, "platform/genfs_contexts",
+                    "genfscon sysfs /devices/platform/foo/mode u:object_r:sysfs_mode:s0"));
+    EXPECT_TRUE(Has(result.plan, "platform/file.te", "type sysfs_mode, fs_type, sysfs_type;"));
+    EXPECT_FALSE(result.plan.files.contains("vendor/genfs_contexts"));
+    EXPECT_EQ(result.tuples[0].key.ttype, "sysfs_mode");
+}
+
 TEST(LabelFilesTest, ExistingGenfsLabelIsLeftAlone) {
     PolicyDb db("202604");
     db.AddCil(

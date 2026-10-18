@@ -70,6 +70,10 @@ deviations listed in "Conventions" below.
   `platform/` when vendor sepolicy cannot hold it (private platform domain,
   path outside the vendor partitions, non-vendor property). Do not drop
   such output; the maintainer needs to see it.
+  Labels follow the domain that needs them: a private platform domain
+  cannot name a vendor type, so what it needs is labeled in `platform/`.
+  `genfscon` matches a prefix, so a numbered instance (`wakeup14`, `hwmon0`)
+  is labeled at its directory. The `su` domain (the root shell) is left out.
 - The macro table in `src/analyze/macros.cpp` mirrors
   `system/sepolicy/public/te_macros`. Only rules whose source is the first
   argument are matched; the rest are granted as a side effect. When a macro
