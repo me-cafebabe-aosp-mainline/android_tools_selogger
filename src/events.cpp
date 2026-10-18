@@ -56,7 +56,9 @@ std::optional<uint64_t> ParseAuditLost(std::string_view kernel_message) {
 
 std::optional<uint32_t> ParseRateLimitChange(std::string_view audit_message) {
     if (audit_message.find("type=1305") == std::string_view::npos) return std::nullopt;
-    return NumberAfter<uint32_t>(audit_message, "op=set audit_rate_limit=");
+    // Kernels before 5.x print "audit_rate_limit=5 old=0", later ones
+    // "op=set audit_rate_limit=5 old=0".
+    return NumberAfter<uint32_t>(audit_message, "audit_rate_limit=");
 }
 
 }  // namespace selogger

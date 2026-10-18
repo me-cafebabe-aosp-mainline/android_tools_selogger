@@ -31,7 +31,10 @@ TEST(EventsTest, DecodesAuditString) {
 
 TEST(EventsTest, DecodesWhatLogdSends) {
     // The start of an event as seen on a device: tag 1003, string, length 3.
-    const std::string wire("\xeb\x03\x00\x00\x02\x03\x00\x00\x00""abc", 12);
+    const std::string wire(
+            "\xeb\x03\x00\x00\x02\x03\x00\x00\x00"
+            "abc",
+            12);
     EXPECT_EQ(DecodeAuditEvent(wire), "abc");
 }
 
@@ -55,6 +58,9 @@ TEST(EventsTest, ParsesRateLimitChange) {
                                    "auid=4294967295 res=1"),
               5u);
     EXPECT_EQ(ParseRateLimitChange("type=1305 audit(0.0:9): op=set audit_rate_limit=0 old=5"), 0u);
+    // The older form, without "op=set" (android-4.9).
+    EXPECT_EQ(ParseRateLimitChange("type=1305 audit(0.0:9): audit_rate_limit=100 old=5 res=1"),
+              100u);
     // Other configuration changes and other message types are not it.
     EXPECT_FALSE(ParseRateLimitChange("type=1305 audit(0.0:9): op=set audit_backlog_limit=64 old=1")
                          .has_value());
